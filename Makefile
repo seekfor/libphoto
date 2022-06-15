@@ -16,7 +16,7 @@ OBJS := $(patsubst %.c,%.o, $(SRCS))
 	@echo compiling $<
 	@$(CC) $(CFLAGS) -o $@ -c $<
 
-all: ./test/testgif ./test/testbmp ./test/testpcx ./test/testtiff
+all: ./test/testgif ./test/testbmp ./test/testpcx ./test/testtiff ./test/testpng
 
 ./test/testgif: $(OBJS) ./test/testgif.o
 	@$(CC) -o $@ $(LDFLAGS) $^
@@ -30,8 +30,12 @@ all: ./test/testgif ./test/testbmp ./test/testpcx ./test/testtiff
 ./test/testtiff: $(OBJS) ./test/testtiff.o
 	@$(CC) -o $@ $(LDFLAGS) $^
 	@echo build ./test/testtiff OK!
+./test/testpng: $(OBJS) ./test/testpng.o
+	@$(CC) -o $@ $(LDFLAGS) $^
+	@echo build ./test/testpng OK!
 clean:
-	-@rm -rf $(OBJS) ./test/*.o ./test/testgif ./test/testbmp ./test/testpcx ./test/testtiff
+	-@rm -rf $(OBJS) ./test/*.o ./test/testgif ./test/testbmp ./test/testpcx ./test/testtiff ./test/testpng
+
 
 
 
