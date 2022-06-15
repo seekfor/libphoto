@@ -67,7 +67,7 @@ typedef struct
 
 	int compression;
 	int sps;
-	int predictor;
+	int predictor;/*0/1--no predictor,2--h predictor*/
 
 	int xres;
 	int yres;
@@ -349,7 +349,7 @@ static int libtiff_decode_ifd(libtiff_t* t)
 		{
 			for(j = 0; j < t->info.width; j++,rgb++,obuf += t->sps)
 			{
-				if(t->predictor && j)
+				if((t->predictor == 2) && j)
 				{
 					for(k = 0; k < t->sps; k ++)
 					{
