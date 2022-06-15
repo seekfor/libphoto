@@ -4,7 +4,7 @@
 #define CFG_BMP_SUPPORT
 #define CFG_GIF_SUPPORT
 #define CFG_PCX_SUPPORT
-
+#define CFG_TIFF_SUPPORT
 
 #define RGB(r,g,b) ((unsigned int)b << 16|((unsigned int)g << 8)|((unsigned int)r))
 #define RGB_R(cr) ((unsigned char)(cr))
@@ -42,6 +42,7 @@ typedef struct
 	int height;
 	int bpp;
 	int period;
+	int interlace;
 	int* rgb;
 }libphoto_output_t;
 
@@ -71,6 +72,10 @@ typedef struct
 
 #ifdef CFG_PCX_SUPPORT
 	#include "libpcx.h"
+#endif
+
+#ifdef CFG_TIFF_SUPPORT
+	#include "libtiff.h"
 #endif
 
 

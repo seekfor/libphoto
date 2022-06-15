@@ -10,12 +10,12 @@ int main(int argc, char* argv[])
 	libphoto_output_t attr;
 	char buf[256];
 	int size;
-	void* gif = libgifCreate(argv[1]);
+	void* gif = gifCreate(argv[1]);
 	if(!gif)
 	{
 		return -1;
 	}	
-	while(0 == libgifDecode(gif,&attr))
+	while(0 == gifDecode(gif,&attr))
 	{
 		size = bmpEncode(attr.rgb,attr.width,attr.height,bmp);
 		sprintf(buf,"gif2bmp%d.bmp",attr.index);
@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
 		fwrite(bmp,1,size,p);
 		fclose(p);
 	}
-	libgifDestroy(gif);
+	gifDestroy(gif);
 #endif
 	return 0;
 }

@@ -72,15 +72,25 @@ typedef struct
 	unsigned char* end;
 	int codesize;
 	int rd;
+	int mode;
+	unsigned int val;
 }libgif_bitstream_t;
 
-void bits_init(libgif_bitstream_t* bt,unsigned char* buf,unsigned int len,unsigned char codesize)
+void bits_init(libgif_bitstream_t* bt,unsigned char* buf,unsigned int len,unsigned char codesize,int mode)
 {
 	bt->start = buf;
 	bt->buf = buf;
 	bt->codesize = codesize;
 	bt->rd = 0;
 	bt->end = buf + len;
+	bt->mode = mode;
+	if(mode)
+	{
+		bt->val = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+		bt->buf += 4;
+	}
+
+
 }
 
 unsigned int nextbits(libgif_bitstream_t* bt,unsigned int peek)
@@ -96,43 +106,63 @@ unsigned int nextbits(libgif_bitstream_t* bt,unsigned int peek)
 	int lowbit;
 	int rd = bt->rd;
 	bits = bt->codesize;
-	if(!bt->buf)
+	if(bt->mode == 0)
 	{
-		return 0xffffffff;
-	}
-	lowbit = 8 - rd;
-	if(lowbit >= bits)
-	{
-		low = (bt->buf[0] >> rd) & MASK[bits];
-		k = rd + bits;
-	}
-	else
-	{
-		low = (bt->buf[0] >> rd) & MASK[lowbit];
-		bits -= lowbit;
-		bt->buf ++;
-
-		if(bits <= 8)
+		if(!bt->buf)
 		{
-			med = bt->buf[0] & MASK[bits];
-			k = bits;
+			return 0xffffffff;
+		}
+		lowbit = 8 - rd;
+		if(lowbit >= bits)
+		{
+			low = (bt->buf[0] >> rd) & MASK[bits];
+			k = rd + bits;
 		}
 		else
 		{
-			bits -= 8;
-			med = bt->buf[0];
+			low = (bt->buf[0] >> rd) & MASK[lowbit];
+			bits -= lowbit;
 			bt->buf ++;
-			hi = bt->buf[0] & MASK[bits];
-			k = bits;
+
+			if(bits <= 8)
+			{
+				med = bt->buf[0] & MASK[bits];
+				k = bits;
+			}
+			else
+			{
+				bits -= 8;
+				med = bt->buf[0];
+				bt->buf ++;
+				hi = bt->buf[0] & MASK[bits];
+				k = bits;
+			}
 		}
+		if(k >= 8)
+		{
+			k -= 8;
+			bt->buf ++;
+		}
+		bt->rd = k;
+		ret = low | (med << lowbit) | (hi << (8 + lowbit));
 	}
-	if(k >= 8)
+	else
 	{
-		k -= 8;
-		bt->buf ++;
+		ret = (bt->val << rd) >> (32 - bits);
+		rd += bits;
+		if(bt->buf)
+		{
+			while(rd >= 8)
+			{
+				bt->val <<= 8;
+				bt->val |= bt->buf[0];
+
+				rd -= 8;
+				bt->buf ++;
+			}
+		}
+		bt->rd = rd;
 	}
-	bt->rd = k;
-	ret = low | (med << lowbit) | (hi << (8 + lowbit));
 	if(bt->buf >= bt->end)
 	{
 		bt->buf = (unsigned char*)0;
@@ -164,6 +194,7 @@ static int libgif_lzw_add_table(libgif_t* gif,libgif_bitstream_t* bt,char* kw,in
 	int i;
 	libgif_lzw_table_t* t = gif->lzw.tbl + gif->lzw.tblsize;
 	int start = 1 << (gif->info.codesize );
+	int diff = gif->fp?0:1;
 	if(gif->lzw.tblsize >= 4095)
 	{
 		return 0;
@@ -171,7 +202,7 @@ static int libgif_lzw_add_table(libgif_t* gif,libgif_bitstream_t* bt,char* kw,in
 	t->kwsize = kwsize;
 	memcpy(t->kw,kw,kwsize);
 	gif->lzw.tblsize ++;
-	if(gif->lzw.tblsize >= ((1 << (gif->lzw.codesize))) )
+	if(gif->lzw.tblsize >= ((1 << gif->lzw.codesize) - diff) )
 	{
 		if(gif->lzw.codesize >= 12)
 		{
@@ -211,7 +242,7 @@ static short int libgif_alloc_code(libgif_bitstream_t* bt)
 	return nextbits(bt,1);
 }
 
-static int libgif_lzw_decode(libgif_t* gif,char* buf,int size,int* rgb)
+static int libgif_lzw_decode(libgif_t* gif,char* buf,int size,int mode)
 {
 	unsigned char* out = gif->decbuf;
 	short int pw = -1,cw;
@@ -222,7 +253,7 @@ static int libgif_lzw_decode(libgif_t* gif,char* buf,int size,int* rgb)
 	unsigned short clear = gif->lzw.clearcode;
 	unsigned short end = gif->lzw.endcode;
 	libgif_bitstream_t bt;
-	bits_init(&bt,(unsigned char*)buf,size,gif->lzw.codesize);
+	bits_init(&bt,(unsigned char*)buf,size,gif->lzw.codesize,mode);
 	libgif_lzw_clear(gif,&bt);
 	do
 	{
@@ -336,7 +367,7 @@ static int libgif_header_init(libgif_t* gif,int ver)
 	return 0;
 }
 
-void* libgifCreate(char* filename)
+void* gifCreate(char* filename)
 {
 	FILE* p;
 	int gifver;
@@ -513,13 +544,32 @@ static int libgif_decode_picture(libgif_t* gif,int* rgb)
 		size += ret;
 	}while(ret > 0);
 
-	libgif_lzw_decode(gif,(char*)gif->blkbuf,size,rgb);
+	libgif_lzw_decode(gif,(char*)gif->blkbuf,size,0);
 
 
 	return 0;
 }
 
-int libgifDecode(void* hdl,libphoto_output_t* attr)
+void* gifDecodeTiff(char* buf,int size,int width,int height,char** outbuf)
+{
+	libgif_t* gif;
+	gif = (libgif_t*)malloc(sizeof(libgif_t));
+	if(gif)
+	{
+		memset(gif,0,sizeof(libgif_t));
+		gif->decbuf = (unsigned char*)malloc(width * height * 4);
+		gif->info.codesize = 8;
+		libgif_lzw_init(gif,8);
+		libgif_lzw_decode(gif,buf,size,1);
+		if(outbuf)
+		{
+			*outbuf = (char*)gif->decbuf;
+		}
+	}	
+	return gif;
+}
+
+int gifDecode(void* hdl,libphoto_output_t* attr)
 {
 	int ret = -1;
 	int end = 0;
@@ -614,7 +664,7 @@ int libgifDecode(void* hdl,libphoto_output_t* attr)
 	return ret;
 }
 
-int libgifDestroy(void* hdl)
+int gifDestroy(void* hdl)
 {
 	libgif_t* gif = (libgif_t*)hdl;
 	if(gif->fp)

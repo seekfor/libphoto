@@ -8,9 +8,12 @@
 extern "C"
 {
 #endif
-	void* libgifCreate(char* filename);
-	int libgifDecode(void* hdl,libphoto_output_t* attr);
-	int libgifDestroy(void* hdl);
+	void* gifCreate(char* filename);
+	void* gifDecodeTiff(char* buf,int size,int width,int height,char** outbuf);
+	int gifDecode(void* hdl,libphoto_output_t* attr);
+	int gifDestroy(void* hdl);
+
+
 #ifdef __cplusplus
 }
 #endif
